@@ -66,6 +66,7 @@ jobs:
       - name: Build
         run: |
           cmake --build build --parallel 10
+          cp build/protoc build/protoc-stable
         shell: bash -euo pipefail {0}
 
       - name: Upload
@@ -74,7 +75,7 @@ jobs:
           mode: upload
           # @configure: List your binary paths/directories/globs 
           binaries: |
-                build/protoc
+                build/protoc-stable
           project: '${{ env.LOCI_PROJECT }}'
           target: ${{ steps.target.outputs.value || ''}}
           base: ${{ steps.base.outputs.value || '' }}
