@@ -630,7 +630,7 @@ void FileGenerator::GenerateInternalForwardDeclarations(
       if (options_.lite_implicit_weak_fields) {
         p->Emit({{"ptr", MsgGlobalsInstancePtr(instance, options_)}}, R"cc(
           PROTOBUF_CONSTINIT __attribute__((weak)) const void* $ptr$ =
-              &::_pbi::implicit_weak_message_default_instance;
+              &::_pbi::implicit_weak_message_globals;
         )cc");
       } else {
         p->Emit({{"type", MsgGlobalsInstanceType(instance, options_)},
@@ -1587,16 +1587,25 @@ void FileGenerator::GenerateLibraryIncludes(io::Printer* p) {
     IncludeFile("third_party/protobuf/message_lite.h", p);
   }
   if (options_.opensource_runtime) {
-    // Open-source relies on unconditional includes of these.
+    // Open-source relies on unconditional includes of repeated_field.h because
+    // many years it was unconditionally included. Removing it would technically
+    // be a breaking change.
     IncludeFileAndExport("third_party/protobuf/repeated_field.h", p);
+    if (HasRepeatedFields(file_, FieldDescriptor::CppRepeatedType::kProxy)) {
+      IncludeFileAndExport("third_party/protobuf/repeated_field_proxy.h", p);
+    }
+    // Open-source relies on unconditional includes of extension_set.h.
     IncludeFileAndExport("third_party/protobuf/extension_set.h", p);
   } else {
     // Google3 includes these files only when they are necessary.
     if (HasExtensionsOrExtendableMessage(file_)) {
       IncludeFileAndExport("third_party/protobuf/extension_set.h", p);
     }
-    if (HasRepeatedFields(file_)) {
+    if (HasRepeatedFields(file_, FieldDescriptor::CppRepeatedType::kRepeated)) {
       IncludeFileAndExport("third_party/protobuf/repeated_field.h", p);
+    }
+    if (HasRepeatedFields(file_, FieldDescriptor::CppRepeatedType::kProxy)) {
+      IncludeFileAndExport("third_party/protobuf/repeated_field_proxy.h", p);
     }
     if (HasStringPieceFields(file_, options_)) {
       IncludeFile("third_party/protobuf/string_piece_field_support.h", p);
