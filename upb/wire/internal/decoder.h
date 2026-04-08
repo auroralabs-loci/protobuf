@@ -49,13 +49,11 @@ typedef struct upb_Decoder {
   bool message_is_done;
   union {
     upb_Arena arena;
-    void* foo[UPB_ARENA_SIZE_HACK];
+    void* foo[UPB_ARENA_SIZE_HACK / sizeof(void*)];
   };
   upb_ErrorHandler err;
 
 #ifndef NDEBUG
-  const char* debug_tagstart;
-  const char* debug_valstart;
   char* trace_buf;
   char* trace_ptr;
   char* trace_end;
@@ -195,11 +193,16 @@ UPB_INLINE bool _upb_Decoder_FieldRequiresUtf8Validation(
 }
 
 UPB_INLINE bool _upb_Decoder_ReadString(upb_Decoder* d, const char** ptr,
-                                        size_t size, upb_StringView* sv) {
+                                        size_t size, upb_StringView* sv,
+                                        bool validate_utf8) {
   upb_StringView tmp;
   *ptr =
       upb_EpsCopyInputStream_ReadStringAlwaysAlias(&d->input, *ptr, size, &tmp);
   if (*ptr == NULL) return false;
+  if (validate_utf8 && !utf8_range_IsValid(tmp.data, tmp.size)) {
+    upb_ErrorHandler_ThrowError(&d->err, kUpb_DecodeStatus_BadUtf8);
+    return false;
+  }
   if ((d->options & kUpb_DecodeOption_AliasString) == 0) {
     char* data = (char*)upb_Arena_Malloc(&d->arena, tmp.size);
     if (!data) return false;

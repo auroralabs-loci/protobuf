@@ -29,6 +29,7 @@ exports_files([
     "conformance.proto",
     "failure_list_cpp.txt",
     "failure_list_csharp.txt",
+    "failure_list_csharp_performance.txt",
     "failure_list_java.txt",
     "failure_list_java_lite.txt",
     "failure_list_objc.txt",
@@ -138,6 +139,7 @@ cc_library(
         "//:test_messages_proto2_cc_proto",
         "//:test_messages_proto3_cc_proto",
         "//conformance/test_protos:test_messages_edition2023_cc_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_cc_proto",
         "//editions:test_messages_proto2_editions_cc_proto",
         "//editions:test_messages_proto3_editions_cc_proto",
         "//src/google/protobuf",
@@ -166,6 +168,7 @@ cc_library(
         "//:test_messages_proto2_cc_proto",
         "//:test_messages_proto3_cc_proto",
         "//conformance/test_protos:test_messages_edition2023_cc_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_cc_proto",
         "//editions:test_messages_proto2_editions_cc_proto",
         "//editions:test_messages_proto3_editions_cc_proto",
         "//src/google/protobuf",
@@ -249,6 +252,7 @@ cc_test(
         "//:test_messages_proto2_cc_proto",
         "//:test_messages_proto3_cc_proto",
         "//conformance/test_protos:test_messages_edition2023_cc_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_cc_proto",
         "//editions:test_messages_proto2_editions_cc_proto",
         "//editions:test_messages_proto3_editions_cc_proto",
         "@googletest//:gtest",
@@ -354,6 +358,7 @@ exports_files([
     "bazel_conformance_test_runner.sh",
     "failure_list_cpp.txt",
     "failure_list_csharp.txt",
+    "failure_list_csharp_performance.txt",
     "failure_list_java.txt",
     "failure_list_java_lite.txt",
     "failure_list_objc.txt",
@@ -440,6 +445,7 @@ cc_binary(
         "//:type_cc_proto",
         "//:wrappers_cc_proto",
         "//conformance/test_protos:test_messages_edition2023_cc_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_cc_proto",
         "//editions:test_messages_proto2_editions_cc_proto",
         "//editions:test_messages_proto3_editions_cc_proto",
         "//src/google/protobuf",
@@ -472,6 +478,7 @@ java_binary(
         "//:test_messages_proto2_java_proto",
         "//:test_messages_proto3_java_proto",
         "//conformance/test_protos:test_messages_edition2023_java_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_java_proto",
         "//editions:test_messages_proto2_editions_java_proto",
         "//editions:test_messages_proto3_editions_java_proto",
     ],
@@ -492,6 +499,7 @@ java_binary(
         "//:test_messages_proto2_java_proto_lite",
         "//:test_messages_proto3_java_proto_lite",
         "//conformance/test_protos:test_messages_edition2023_java_proto_lite",
+        "//conformance/test_protos:test_messages_edition_unstable_java_proto_lite",
         "//editions:test_messages_proto2_editions_java_proto_lite",
         "//editions:test_messages_proto3_editions_java_proto_lite",
     ],
@@ -511,6 +519,7 @@ py_binary(
         ":conformance_py_proto",
         "//:protobuf_python",
         "//conformance/test_protos:test_messages_edition2023_py_pb2",
+        "//conformance/test_protos:test_messages_edition_unstable_py_pb2",
         "//editions:test_messages_proto2_editions_py_pb2",
         "//editions:test_messages_proto3_editions_py_pb2",
         "//python:_message",  # Make upb visible if we need it.
@@ -572,6 +581,7 @@ inline_sh_binary(
     visibility = ["//csharp:__subpackages__"],
     deps = [
         "//conformance/test_protos:test_messages_edition2023_csharp_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_csharp_proto",
         "//csharp/src/Google.Protobuf.Conformance:conformance_runfiles",
     ],
 )
@@ -587,6 +597,7 @@ objc_library(
         "//:test_messages_proto2_objc_proto",
         "//:test_messages_proto3_objc_proto",
         "//conformance/test_protos:test_messages_edition2023_objc_proto",
+        "//conformance/test_protos:test_messages_edition_unstable_objc_proto",
         "//editions:test_messages_proto2_editions_objc_proto",
         "//editions:test_messages_proto3_editions_objc_proto",
     ],
@@ -599,14 +610,4 @@ cc_binary(
     tags = ["manual"],
     visibility = ["//objectivec:__subpackages__"],
     deps = [":conformance_objc_lib"],
-)
-
-################################################################################
-# Distribution files
-################################################################################
-
-filegroup(
-    name = "all_files",
-    srcs = glob(["**/*"]),
-    visibility = ["//src/google/protobuf/compiler/csharp:__pkg__"],
 )

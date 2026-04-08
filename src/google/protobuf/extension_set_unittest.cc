@@ -44,9 +44,12 @@
 #include "google/protobuf/unittest_mset.pb.h"
 #include "google/protobuf/unittest_mset_wire_format.pb.h"
 #include "google/protobuf/unittest_proto3_extensions.pb.h"
+#include "google/protobuf/unittest_utf8_string_extensions.pb.h"
 #include "google/protobuf/wire_format.h"
 #include "google/protobuf/wire_format_lite.h"
+#include "utf8_validity.h"
 
+#include "google/protobuf/test_textproto.h"
 
 // Must be included last.
 #include "google/protobuf/port_def.inc"
@@ -103,7 +106,6 @@ class FindExtensionTest : public ::testing::TestWithParam<ExtensionFinderType> {
   bool FindExtensionInfoFromFieldNumber(int wire_type, int field_number,
                                         ExtensionInfo* extension,
                                         bool* was_packed_on_wire) {
-    ExtensionSet es;
     switch (GetParam()) {
       case ExtensionFinderType::kGeneratedExtensionFinder:
         return ExtensionSet::FindExtensionInfoFromFieldNumber(
@@ -1373,7 +1375,7 @@ TEST(ExtensionSetTest, DynamicExtensions) {
 
   // Can we print it?
   std::string message_text;
-  TextFormat::PrintToString(message, &message_text);
+  ASSERT_TRUE(TextFormat::PrintToString(message, &message_text));
   EXPECT_EQ(
       "[dynamic_extensions.scalar_extension]: 123\n"
       "[dynamic_extensions.enum_extension]: FOREIGN_BAR\n"
@@ -1517,8 +1519,8 @@ TEST(ExtensionSetTest, NumExtensionsWithRepeatedFields) {
       unittest::TestAllExtensions::descriptor()->file()->FindExtensionByName(
           "repeated_int32_extension");
   ASSERT_NE(desc, nullptr);
-  set.MutableRawRepeatedField(/*arena=*/nullptr, desc->number(),
-                              WireFormatLite::TYPE_INT32, false, desc);
+  (void)set.MutableRawRepeatedField(/*arena=*/nullptr, desc->number(),
+                                    WireFormatLite::TYPE_INT32, false, desc);
   EXPECT_EQ(set.NumExtensions(), 1);
 }
 
@@ -1720,7 +1722,7 @@ TEST(ExtensionSetTest, MoveLazyMessageExtension) {
   EXPECT_TRUE(dst.HasExtension(unittest::optional_int32_extension));
 
   // Dest is lazy.
-  set2.IsLazy(unittest::optional_int32_extension.number());
+  (void)set2.IsLazy(unittest::optional_int32_extension.number());
 
   // Finally, force the parse just to verify.
   EXPECT_EQ(dst.GetExtension(unittest::optional_int32_extension), 1234);
@@ -1806,6 +1808,7 @@ TEST(ExtensionSetTest, MoveExtensionWithDynamicDescriptor) {
   ASSERT_EQ(fields.size(), 1);
   EXPECT_EQ(fields[0], dynamic_ext_fd);
 }
+
 
 
 TEST_P(FindExtensionTest,
@@ -1974,6 +1977,55 @@ INSTANTIATE_TEST_SUITE_P(
       absl::c_replace_if(name, [](char c) { return !std::isalnum(c); }, '_');
       return name;
     });
+
+TEST(ExtensionSet, StringWithInvalidUTF8FailsToParse) {
+  // Sanity check that the extension field is marked as requiring UTF-8
+  // validation. `requires_utf8_validation` can only be true for string fields
+  // where feature.utf8_validation = VERIFY.
+  const google::protobuf::DescriptorPool* pool = google::protobuf::DescriptorPool::generated_pool();
+  ASSERT_NE(pool, nullptr);
+  const google::protobuf::FieldDescriptor* string_ext_fd = pool->FindExtensionByName(
+      "proto2_unittest.optional_utf8_string_extension");
+  ASSERT_NE(string_ext_fd, nullptr);
+  ASSERT_TRUE(string_ext_fd->requires_utf8_validation());
+  std::string invalid_utf8 = "\xFF";
+  ASSERT_FALSE(utf8_range::IsStructurallyValid(invalid_utf8));
+
+  proto2_unittest::TestUtf8ValidationOfExtensions test_message;
+  // It is reasonable to debate that UTF-8 validation should be checked in the
+  // setter, but it is not currently done because the setter doesn't have a way
+  // to report errors.
+  test_message.SetExtension(proto2_unittest::optional_utf8_string_extension,
+                            invalid_utf8);
+  std::string data;
+  ASSERT_TRUE(test_message.SerializeToString(&data));
+  proto2_unittest::TestUtf8ValidationOfExtensions parsed_message;
+  ASSERT_FALSE(parsed_message.ParseFromString(data));
+}
+
+TEST(ExtensionSet, BytesWithInvalidUTF8Succeeds) {
+  // Sanity check that the extension field is not marked as requiring UTF-8
+  // validation. `requires_utf8_validation` can only be true for string fields.
+  const google::protobuf::DescriptorPool* pool = google::protobuf::DescriptorPool::generated_pool();
+  ASSERT_NE(pool, nullptr);
+  const google::protobuf::FieldDescriptor* string_ext_fd =
+      pool->FindExtensionByName("proto2_unittest.optional_bytes_extension");
+  ASSERT_NE(string_ext_fd, nullptr);
+  ASSERT_FALSE(string_ext_fd->requires_utf8_validation());
+  std::string invalid_utf8 = "\xFF";
+  ASSERT_FALSE(utf8_range::IsStructurallyValid(invalid_utf8));
+
+  proto2_unittest::TestAllExtensions test_message;
+  test_message.SetExtension(proto2_unittest::optional_bytes_extension,
+                            invalid_utf8);
+  std::string data;
+  ASSERT_TRUE(test_message.SerializeToString(&data));
+  proto2_unittest::TestAllExtensions parsed_message;
+  EXPECT_TRUE(parsed_message.ParseFromString(data));
+  EXPECT_THAT(parsed_message, google::protobuf::EqualsProto(R"pb(
+                [proto2_unittest.optional_bytes_extension]: "\xFF"
+              )pb"));
+}
 
 }  // namespace
 }  // namespace internal

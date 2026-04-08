@@ -41,14 +41,13 @@ class ParseFunctionGenerator {
   ParseFunctionGenerator(
       const Descriptor* descriptor, int max_has_bit_index,
       absl::Span<const int> has_bit_indices, const Options& options,
-      MessageSCCAnalyzer* scc_analyzer,
       const absl::flat_hash_map<absl::string_view, std::string>& vars,
       int index_in_file_messages);
 
   static std::vector<internal::TailCallTableInfo::FieldOptions>
   BuildFieldOptions(const Descriptor* descriptor,
                     absl::Span<const FieldDescriptor* const> ordered_fields,
-                    const Options& options, MessageSCCAnalyzer* scc_analyzer,
+                    const Options& options,
                     absl::Span<const int> has_bit_indices);
 
   static internal::TailCallTableInfo BuildTcTableInfoFromDescriptor(
@@ -56,11 +55,17 @@ class ParseFunctionGenerator {
       absl::Span<const internal::TailCallTableInfo::FieldOptions>
           field_options);
 
+  // Emit alias parse table type.
+  void GenerateAliasParseTableType(io::Printer* printer);
+
   // Emits class-level data member declarations to `printer`:
   void GenerateDataDecls(io::Printer* printer);
 
   // Emits out-of-class data member definitions to `printer`:
   void GenerateDataDefinitions(io::Printer* printer);
+
+  // Emits the helper function definition to `printer`:
+  void GenerateParseTableHelperDefinition(io::Printer* printer);
 
  private:
   friend class TailCallTableInfoTest;
@@ -74,7 +79,6 @@ class ParseFunctionGenerator {
   void GenerateFieldNames(Formatter& format);
 
   const Descriptor* descriptor_;
-  MessageSCCAnalyzer* scc_analyzer_;
   const Options& options_;
   absl::flat_hash_map<absl::string_view, std::string> variables_;
   std::unique_ptr<internal::TailCallTableInfo> tc_table_info_;

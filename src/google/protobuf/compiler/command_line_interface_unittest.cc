@@ -1208,6 +1208,58 @@ TEST_F(CommandLineInterfaceTest, CreateDirectory) {
   ExpectGenerated("test_plugin", "", "bar/baz/foo.proto", "Foo", "plugout");
 }
 
+TEST_F(CommandLineInterfaceTest, RejectDotDotInFilename) {
+  class DotDotGenerator : public CodeGenerator {
+   public:
+    bool Generate(const FileDescriptor* file, const std::string& parameter,
+                  GeneratorContext* context,
+                  std::string* error) const override {
+      std::unique_ptr<io::ZeroCopyOutputStream> output(
+          context->Open("abc/../../foo.proto.test"));
+      return true;
+    }
+  };
+
+  RegisterGenerator("--dotdot_out", std::make_unique<DotDotGenerator>(),
+                    "Test .. rejection.");
+
+  CreateTempFile("foo.proto",
+                 "syntax = \"proto2\";\n"
+                 "message Foo {}\n");
+
+  RunProtoc(
+      "protocol_compiler --dotdot_out=$tmpdir "
+      "--proto_path=$tmpdir foo.proto");
+
+  ExpectErrorSubstring("Output file names must never have a relative path.");
+}
+
+TEST_F(CommandLineInterfaceTest, AllowDotDotInFilenameWithFlag) {
+  class DotDotGenerator : public CodeGenerator {
+   public:
+    bool Generate(const FileDescriptor* file, const std::string& parameter,
+                  GeneratorContext* context,
+                  std::string* error) const override {
+      std::unique_ptr<io::ZeroCopyOutputStream> output(
+          context->Open("abc/../../foo.proto.test"));
+      return true;
+    }
+  };
+
+  RegisterGenerator("--dotdot_out", std::make_unique<DotDotGenerator>(),
+                    "Test .. allowance.");
+
+  CreateTempFile("foo.proto",
+                 "syntax = \"proto2\";\n"
+                 "message Foo {}\n");
+
+  RunProtoc(
+      "protocol_compiler --unsafe_allow_out_dir_escape --dotdot_out=$tmpdir "
+      "--proto_path=$tmpdir foo.proto");
+
+  ExpectNoErrors();
+}
+
 TEST_F(CommandLineInterfaceTest, GeneratorParameters) {
   // Test that generator parameters are correctly parsed from the command line.
 
@@ -1650,6 +1702,71 @@ TEST_F(CommandLineInterfaceTest, ImportOptions_MissingImport) {
   ExpectErrorSubstring("options.proto: File not found");
 }
 
+TEST_F(CommandLineInterfaceTest, ValidateFeatureSupportError) {
+  CreateTempFile("foo.proto",
+                 R"schema(
+    edition = "2023";
+    option features.field_presence = IMPLICIT;
+    message Foo {
+      int32 bar = 1 [
+        feature_support = {
+          edition_removed: EDITION_2023
+        }
+      ];
+    })schema");
+  Run("protocol_compiler --proto_path=$tmpdir --test_out=$tmpdir foo.proto");
+  ExpectErrorSubstring(
+      "foo.proto: Foo.bar has been removed but does not specify a removal "
+      "error.");
+}
+
+TEST_F(CommandLineInterfaceTest, ValidateFeatureSupportValid) {
+  CreateTempFile("foo.proto",
+                 R"schema(
+    edition = "2023";
+    option features.field_presence = IMPLICIT;
+    message Foo {
+      int32 bar = 1 [
+        feature_support = {
+          edition_removed: EDITION_2023
+          removal_error: "Custom removal error"
+        }
+      ];
+    })schema");
+  Run("protocol_compiler --proto_path=$tmpdir --test_out=$tmpdir foo.proto");
+  ExpectNoErrors();
+}
+
+TEST_F(CommandLineInterfaceTest, ValidateFeatureSupportLifetimesOptionRemoved) {
+  CreateTempFile("google/protobuf/descriptor.proto",
+                 google::protobuf::DescriptorProto::descriptor()->file()->DebugString());
+  CreateTempFile("foo.proto",
+                 R"schema(
+    edition = "2024";
+    import "google/protobuf/descriptor.proto";
+
+    option features.field_presence = IMPLICIT;
+
+    extend google.protobuf.MessageOptions {
+      bool removed_option = 7733026 [feature_support = {
+        edition_removed: EDITION_2023
+        removal_error: "removed_option removal error"}];
+    }
+    message Foo {
+      option (removed_option) = true;
+      int32 bar = 1 [
+        feature_support = {
+          edition_removed: EDITION_2023
+          removal_error: "Custom removal error"
+        }
+      ];
+    })schema");
+  Run("protocol_compiler --proto_path=$tmpdir --test_out=$tmpdir foo.proto");
+  ExpectErrorSubstring(
+      "removed_option has been removed in edition 2023: removed_option removal "
+      "error");
+}
+
 TEST_F(CommandLineInterfaceTest, FeatureValidationError) {
   CreateTempFile("foo.proto",
                  R"schema(
@@ -1744,6 +1861,38 @@ TEST_F(CommandLineInterfaceTest, NamingStyleEnforced) {
     )schema");
   Run("protocol_compiler --proto_path=$tmpdir --test_out=$tmpdir foo.proto");
   ExpectErrorSubstring("Package name badPackage should be lower_snake_case");
+}
+
+TEST_F(CommandLineInterfaceTest, NamingStyleStartsWithHasCollisionExists) {
+  CreateTempFile("foo.proto",
+                 R"schema(
+    edition = "UNSTABLE";
+    message Foo {
+      string has_bar = 1;
+      string bar = 2;
+    }
+    )schema");
+  Run("protocol_compiler --proto_path=$tmpdir --test_out=$tmpdir foo.proto");
+  ExpectErrorSubstring(
+      "Field name has_bar should not begin with has_ if a field named bar "
+      "exists. "
+      "This can cause collisions in generated code. "
+      "(features.enforce_naming_style = STYLE2024 can be used to opt out of "
+      "this check)");
+}
+
+TEST_F(CommandLineInterfaceTest, NamingStyleStartsWithHasNoCollision) {
+  CreateTempFile("foo.proto",
+                 R"schema(
+    edition = "UNSTABLE";
+    message Foo {
+      string has_bar = 1;
+      string baz = 2;
+    }
+    )schema");
+  Run("protocol_compiler --proto_path=$tmpdir --experimental_editions "
+      "--test_out=$tmpdir foo.proto");
+  ExpectNoErrors();
 }
 
 TEST_F(CommandLineInterfaceTest, Plugin_InvalidFeatureExtensionError) {
@@ -2244,7 +2393,7 @@ TEST_F(CommandLineInterfaceTest, EditionDefaults) {
   ExpectNoErrors();
 
   FeatureSetDefaults defaults = ReadEditionDefaults("defaults");
-  EXPECT_THAT(defaults, EqualsProto(R"pb(
+  EXPECT_THAT(defaults, PartiallyMatchesEditionDefaults(R"pb(
     defaults {
       edition: EDITION_LEGACY
       overridable_features {}
@@ -2317,7 +2466,7 @@ TEST_F(CommandLineInterfaceTest, EditionDefaultsWithMaximum) {
   ExpectNoErrors();
 
   FeatureSetDefaults defaults = ReadEditionDefaults("defaults");
-  EXPECT_THAT(defaults, EqualsProto(R"pb(
+  EXPECT_THAT(defaults, PartiallyMatchesEditionDefaults(R"pb(
                 defaults {
                   edition: EDITION_LEGACY
                   overridable_features {}
@@ -2416,7 +2565,7 @@ TEST_F(CommandLineInterfaceTest, EditionDefaultsWithMinimum) {
   ExpectNoErrors();
 
   FeatureSetDefaults defaults = ReadEditionDefaults("defaults");
-  EXPECT_THAT(defaults, EqualsProto(R"pb(
+  EXPECT_THAT(defaults, PartiallyMatchesEditionDefaults(R"pb(
                 defaults {
                   edition: EDITION_LEGACY
                   overridable_features {}
@@ -2664,7 +2813,8 @@ TEST_F(CommandLineInterfaceTest, JavaMultipleFilesEdition2024Invalid) {
   Run("protocol_compiler --proto_path=$tmpdir "
       "foo.proto --test_out=$tmpdir --experimental_editions");
   ExpectErrorSubstring(
-      "The `java_multiple_files` behavior is enabled by default");
+      "google.protobuf.FileOptions.java_multiple_files has been removed in edition "
+      "2024: This behavior is enabled by default");
 }
 
 
@@ -2678,7 +2828,8 @@ TEST_F(CommandLineInterfaceTest, JavaNestInFileClassFor) {
   Run("protocol_compiler --proto_path=$tmpdir "
       "foo.proto --test_out=$tmpdir --experimental_editions");
   ExpectErrorSubstring(
-      "The `java_multiple_files` behavior is enabled by default");
+      "google.protobuf.FileOptions.java_multiple_files has been removed in edition "
+      "2024: This behavior is enabled by default");
 }
 
 

@@ -170,7 +170,7 @@ TYPED_TEST_P(WireFormatTest, Parse) {
   // Parse using WireFormat.
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectAllFieldsSet(dest);
@@ -187,7 +187,7 @@ TYPED_TEST_P(WireFormatTest, ParseExtensions) {
   // Parse using WireFormat.
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectAllExtensionsSet(dest);
@@ -204,7 +204,7 @@ TYPED_TEST_P(WireFormatTest, ParsePacked) {
   // Parse using WireFormat.
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectPackedFieldsSet(dest);
@@ -220,7 +220,7 @@ TYPED_TEST_P(WireFormatTest, ParsePackedFromUnpacked) {
   typename TestFixture::TestPackedTypes dest;
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectPackedFieldsSet(dest);
@@ -236,7 +236,7 @@ TYPED_TEST_P(WireFormatTest, ParseUnpackedFromPacked) {
   typename TestFixture::TestUnpackedTypes dest;
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectUnpackedFieldsSet(dest);
@@ -253,7 +253,7 @@ TYPED_TEST_P(WireFormatTest, ParsePackedExtensions) {
   // Parse using WireFormat.
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectPackedExtensionsSet(dest);
@@ -270,7 +270,7 @@ TYPED_TEST_P(WireFormatTest, ParseOneof) {
   // Parse using WireFormat.
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &dest));
 
   // Check.
   TestUtil::ExpectOneofSet1(dest);
@@ -297,7 +297,7 @@ TYPED_TEST_P(WireFormatTest, OneofOnlySetLast) {
   }
   io::ArrayInputStream raw_input(data.data(), data.size());
   io::CodedInputStream input(&raw_input);
-  WireFormat::ParseAndMergePartial(&input, &oneof_dest);
+  ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, &oneof_dest));
 
   // Only the last field is set.
   EXPECT_FALSE(oneof_dest.has_foo_int());
@@ -779,7 +779,7 @@ TYPED_TEST_P(WireFormatTest, ParseMessageSetWithDeepRecReverseOrder) {
       m->set_i(i);
       mset = m->mutable_recursive();
     }
-    message_set.ByteSizeLong();
+    EXPECT_GT(message_set.ByteSizeLong(), 0);
     // Serialize with reverse payload tag order
     io::StringOutputStream output_stream(&data);
     io::CodedOutputStream coded_output(&output_stream);
@@ -834,7 +834,7 @@ TYPED_TEST_P(WireFormatTest, ParseFailMalformedMessageSetReverseOrder) {
     // SerializeReverseOrder() assumes "recursive" is always present.
     m->mutable_recursive();
 
-    message_set.ByteSizeLong();
+    EXPECT_GT(message_set.ByteSizeLong(), 0);
 
     // Serialize with reverse payload tag order
     io::StringOutputStream output_stream(&data);
@@ -1284,7 +1284,7 @@ class Proto3PrimitiveRepeatedWireFormatTest<void(
     io::CodedInputStream input(
         reinterpret_cast<const uint8_t*>(compatible_data.data()),
         compatible_data.size());
-    WireFormat::ParseAndMergePartial(&input, message);
+    ASSERT_TRUE(WireFormat::ParseAndMergePartial(&input, message));
     ExpectProto3PrimitiveRepeatedFieldsSet(*message);
   }
 
@@ -1645,7 +1645,6 @@ REGISTER_TYPED_TEST_SUITE_P(Utf8ValidationTest, WriteInvalidUTF8String,
                             ReadArbitraryBytes, ParseRepeatedString,
                             OldVerifyUTF8String);
 
-
 template <typename T>
 class LazyMessageSetsTest;
 template <typename Proto2T, typename Proto3T, typename eagerly_parse>
@@ -1656,9 +1655,7 @@ class LazyMessageSetsTest<void(Proto2T, Proto3T, eagerly_parse)>
 
   static constexpr bool kEagerlyParseMessageSets = eagerly_parse::value;
 
-  void SetUp() override {
-    GTEST_SKIP() << "Disabled.";
-  }
+  void SetUp() override { GTEST_SKIP() << "Disabled."; }
 };
 TYPED_TEST_SUITE_P(LazyMessageSetsTest);
 

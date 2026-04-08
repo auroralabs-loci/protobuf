@@ -20,6 +20,7 @@ import static java.lang.Character.toCodePoint;
 
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -36,7 +37,7 @@ import java.util.Arrays;
  * converted to Strings and back to bytes using the UTF-8 charset, without loss:
  *
  * <pre>{@code
- * Arrays.equals(bytes, new String(bytes, Internal.UTF_8).getBytes(Internal.UTF_8))
+ * Arrays.equals(bytes, new String(bytes, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8))
  * }</pre>
  *
  * <p>See the Unicode Standard,</br> Table 3-6. <em>UTF-8 Bit Distribution</em>,</br> Table 3-7.
@@ -52,7 +53,7 @@ final class Utf8 {
    * delegate for which all methods are delegated directly to.
    */
   private static final Processor processor =
-      (UnsafeProcessor.isAvailable() && !Android.isOnAndroidDevice())
+      (!Android.isOnAndroidDevice() && UnsafeProcessor.isAvailable())
           ? new UnsafeProcessor()
           : new SafeProcessor();
 
@@ -161,7 +162,7 @@ final class Utf8 {
           // exceptionally rare, so we fallback to the naive implementation to find out the
           // length that the Java internal implementation will return for this string after
           // replacement characters.
-          return string.getBytes(Internal.UTF_8).length;
+          return string.getBytes(StandardCharsets.UTF_8).length;
         }
         break;
       }
@@ -212,6 +213,9 @@ final class Utf8 {
    */
   static String decodeUtf8(ByteBuffer buffer, int index, int size)
       throws InvalidProtocolBufferException {
+    if (size == 0) {
+      return "";
+    }
     return processor.decodeUtf8(buffer, index, size);
   }
 
@@ -222,6 +226,9 @@ final class Utf8 {
    */
   static String decodeUtf8(byte[] bytes, int index, int size)
       throws InvalidProtocolBufferException {
+    if (size == 0) {
+      return "";
+    }
     return processor.decodeUtf8(bytes, index, size);
   }
 
@@ -460,7 +467,7 @@ final class Utf8 {
     }
 
     protected int encodeUtf8Naive(String in, byte[] out, int offset, int length) {
-      byte[] bytes = in.getBytes(Internal.UTF_8);
+      byte[] bytes = in.getBytes(StandardCharsets.UTF_8);
       if (bytes.length - offset > length) {
         throw new ArrayIndexOutOfBoundsException(
             "Not enough space in output buffer to encode UTF-8 string");
@@ -470,7 +477,7 @@ final class Utf8 {
     }
 
     protected void encodeUtf8Naive(String in, ByteBuffer out) {
-      final byte[] bytes = in.getBytes(Internal.UTF_8);
+      final byte[] bytes = in.getBytes(StandardCharsets.UTF_8);
       try {
         out.put(bytes);
       } catch (BufferOverflowException unused) {
@@ -828,7 +835,10 @@ final class Utf8 {
   static final class UnsafeProcessor extends Processor {
     /** Indicates whether or not all required unsafe operations are supported on this platform. */
     static boolean isAvailable() {
-      return hasUnsafeArrayOperations() && hasUnsafeByteBufferOperations();
+      if (!hasUnsafeArrayOperations() || !hasUnsafeByteBufferOperations()) {
+        return false;
+      }
+      return true;
     }
 
     @Override
@@ -1006,7 +1016,7 @@ final class Utf8 {
 
     @Override
     String decodeUtf8(byte[] bytes, int index, int size) throws InvalidProtocolBufferException {
-      String s = new String(bytes, index, size, Internal.UTF_8);
+      String s = new String(bytes, index, size, StandardCharsets.UTF_8);
 
       // '\uFFFD' is the UTF-8 default replacement char, which illegal byte sequences get replaced
       // with.
@@ -1020,7 +1030,7 @@ final class Utf8 {
       // To rule out (1), we encode s and compare it to the byte array slice.
       // If the byte array slice was invalid UTF-8, then we would get a different sequence of bytes.
       if (Arrays.equals(
-          s.getBytes(Internal.UTF_8), Arrays.copyOfRange(bytes, index, index + size))) {
+          s.getBytes(StandardCharsets.UTF_8), Arrays.copyOfRange(bytes, index, index + size))) {
         return s;
       }
 
