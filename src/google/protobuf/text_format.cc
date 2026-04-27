@@ -611,16 +611,23 @@ class TextFormat::Parser::ParserImpl {
                                  "\" stored in google.protobuf.Any."));
         return false;
       }
+      if (--recursion_limit_ < 0) {
+        ReportError(
+            absl::StrCat("Message is too deep, the parser exceeded the "
+                         "configured recursion limit of ",
+                         initial_recursion_limit_, "."));
+        return false;
+      }
       int v_start_line = tokenizer_.current().line;
       int v_start_column = tokenizer_.current().column;
       DO(ConsumeAnyValue(value_descriptor, &serialized_value));
+      ++recursion_limit_;
       record_value_location(v_start_line, v_start_column);
 
       record_name_location(
           any_type_url_field,
           ParseLocationRange(ParseLocation(n_start_line, n_start_column),
                              ParseLocation(n_end_line, n_end_column)));
-
       if (singular_overwrite_policy_ == FORBID_SINGULAR_OVERWRITES) {
         // Fail if any_type_url_field has already been specified.
         if ((!any_type_url_field->is_repeated() &&

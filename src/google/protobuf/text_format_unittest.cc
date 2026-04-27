@@ -2720,6 +2720,23 @@ TEST_F(TextFormatParserTest, SetRecursionLimitUnknownFieldMessage) {
   ExpectSuccessAndTree(input, &message, nullptr);
 }
 
+TEST_F(TextFormatParserTest, SetRecursionLimitAnyBracketSyntax) {
+  const std::string input =
+      "[type.googleapis.com/proto2_unittest.TestAllTypes] "
+      "{ optional_int32: 1 }";
+
+  parser_.SetRecursionLimit(0);
+  Any any;
+  ExpectMessage(
+      input,
+      "Message is too deep, the parser exceeded the configured recursion limit "
+      "of 0.",
+      1, 52, &any, false);
+
+  parser_.SetRecursionLimit(1);
+  ExpectSuccessAndTree(input, &any, nullptr);
+}
+
 TEST_F(TextFormatParserTest, ParseAnyFieldWithAdditionalWhiteSpaces) {
   Any any;
   std::string parse_string =
