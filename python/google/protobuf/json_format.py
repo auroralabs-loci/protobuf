@@ -774,6 +774,13 @@ class _Parser(object):
 
   def _ConvertValueMessage(self, value, message, path):
     """Convert a JSON representation into Value message."""
+    self.recursion_depth += 1
+    if self.recursion_depth > self.max_recursion_depth:
+      raise ParseError(
+          'Message too deep. Max recursion depth is {0}'.format(
+              self.max_recursion_depth
+          )
+      )
     if isinstance(value, dict):
       self.ConvertMessage(value, message.struct_value, path)
     elif isinstance(value, _LIST_LIKE):
@@ -792,6 +799,7 @@ class _Parser(object):
               value, type(value), path
           )
       )
+    self.recursion_depth -= 1
 
   def _ConvertListOrTupleValueMessage(self, value, message, path):
     """Convert a JSON representation into ListValue message."""
@@ -799,17 +807,32 @@ class _Parser(object):
       raise ParseError(
           'ListValue must be in [] which is {0} at {1}'.format(value, path)
       )
+    self.recursion_depth += 1
+    if self.recursion_depth > self.max_recursion_depth:
+      raise ParseError(
+          'Message too deep. Max recursion depth is {0}'.format(
+              self.max_recursion_depth
+          )
+      )
     message.ClearField('values')
     for index, item in enumerate(value):
       self.ConvertMessage(
           item, message.values.add(), '{0}[{1}]'.format(path, index)
       )
+    self.recursion_depth -= 1
 
   def _ConvertStructMessage(self, value, message, path):
     """Convert a JSON representation into Struct message."""
     if not isinstance(value, dict):
       raise ParseError(
           'Struct must be in a dict which is {0} at {1}'.format(value, path)
+      )
+    self.recursion_depth += 1
+    if self.recursion_depth > self.max_recursion_depth:
+      raise ParseError(
+          'Message too deep. Max recursion depth is {0}'.format(
+              self.max_recursion_depth
+          )
       )
     # Clear will mark the struct as modified so it will be created even if
     # there are no values.
@@ -818,7 +841,7 @@ class _Parser(object):
       self.ConvertMessage(
           value[key], message.fields[key], '{0}.{1}'.format(path, key)
       )
-    return
+    self.recursion_depth -= 1
 
   def _ConvertWrapperMessage(self, value, message, path):
     """Convert a JSON representation into Wrapper message."""
