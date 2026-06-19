@@ -1457,6 +1457,13 @@ class TextFormat::Parser::ParserImpl {
   // full_type_name, then serializes it into serialized_value.
   bool ConsumeAnyValue(const Descriptor* value_descriptor,
                        std::string* serialized_value) {
+    if (--recursion_limit_ < 0) {
+      ReportError(
+          absl::StrCat("Message is too deep, the parser exceeded the "
+                       "configured recursion limit of ",
+                       initial_recursion_limit_, "."));
+      return false;
+    }
     DynamicMessageFactory factory;
     const Message* value_prototype = factory.GetPrototype(value_descriptor);
     if (value_prototype == nullptr) {
@@ -1483,6 +1490,7 @@ class TextFormat::Parser::ParserImpl {
       // TODO: Remove this suppression.
       (void)value->AppendToString(serialized_value);
     }
+    ++recursion_limit_;
     return true;
   }
 
