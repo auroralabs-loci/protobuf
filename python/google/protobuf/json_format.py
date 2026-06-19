@@ -535,17 +535,19 @@ class _Parser(object):
               self.max_recursion_depth
           )
       )
-    message_descriptor = message.DESCRIPTOR
-    full_name = message_descriptor.full_name
-    if not path:
-      path = message_descriptor.name
-    if _IsWrapperMessage(message_descriptor):
-      self._ConvertWrapperMessage(value, message, path)
-    elif full_name in _WKTJSONMETHODS:
-      methodcaller(_WKTJSONMETHODS[full_name][1], value, message, path)(self)
-    else:
-      self._ConvertFieldValuePair(value, message, path)
-    self.recursion_depth -= 1
+    try:
+      message_descriptor = message.DESCRIPTOR
+      full_name = message_descriptor.full_name
+      if not path:
+        path = message_descriptor.name
+      if _IsWrapperMessage(message_descriptor):
+        self._ConvertWrapperMessage(value, message, path)
+      elif full_name in _WKTJSONMETHODS:
+        methodcaller(_WKTJSONMETHODS[full_name][1], value, message, path)(self)
+      else:
+        self._ConvertFieldValuePair(value, message, path)
+    finally:
+      self.recursion_depth -= 1
 
   def _ConvertFieldValuePair(self, js, message, path):
     """Convert field value pairs into regular message.
